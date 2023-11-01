@@ -1,1 +1,12 @@
+.DS_Store
+*.log
+**/*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.env
+*.csv
 *.json
