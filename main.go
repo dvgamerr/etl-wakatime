@@ -22,7 +22,7 @@ func init() {
 }
 
 type WakaETLConfig struct {
-	WakaKey string `arg:"--key,env:WAKA_APIKEY"`
+	WakaKey string `arg:"--key,env:WAKA_SECRET"`
 	Output  string `arg:"-o,--output" default:"postgres"`
 	Date    string `arg:"positional"`
 	Dump    string `arg:"--dump" `
@@ -36,8 +36,12 @@ func main() {
 	arg.MustParse(&etl)
 
 	if etl.Dump != "" && etl.WakaKey == "" {
-		sugar.Fatalw("Required environment variable WAKA_APIKEY")
+		sugar.Fatalw("Required environment variable WAKA_SECRET")
 	}
 
-	sugar.Infof("%#v\n", etl)
+	if etl.Output == "postgres" {
+
+	} else {
+		sugar.Fatalw("output not supported.")
+	}
 }
