@@ -12,7 +12,7 @@ COPY (
       heartbeats ->> 'branch' as "branch",
       heartbeats ->> 'category' as "category",
       heartbeats ->> 'type' as "type",
-      CAST(heartbeats ->> 'time' AS real) as 'time',
+      CAST(heartbeats ->> 'time' AS double) as 'time',
       heartbeats ->> 'dependencies' as "dependencies",
       heartbeats ->> 'entity' as "entity",
       heartbeats ->> 'language' as "language",

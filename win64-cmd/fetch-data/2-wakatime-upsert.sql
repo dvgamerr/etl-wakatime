@@ -7,7 +7,7 @@ CREATE TEMPORARY TABLE heartbeats (
   "branch" VARCHAR NULL,
   "category" VARCHAR NULL,
   "type" VARCHAR NULL,
-  "time" REAL NULL,
+  "time" DECIMAL NULL,
   "dependencies" VARCHAR NULL,
   "entity" VARCHAR NULL,
   "language" VARCHAR NULL,
