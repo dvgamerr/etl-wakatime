@@ -1,18 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"time"
-
-	b64 "encoding/base64"
 
 	"github.com/alexflint/go-arg"
-	"github.com/gofiber/fiber/v2"
 	"github.com/hairyhenderson/go-which"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -22,13 +14,6 @@ var (
 	logger *zap.Logger
 	sugar  *zap.SugaredLogger
 )
-
-func win64Goos(path string) string {
-	if runtime.GOOS == "windows" && filepath.Ext(path) == "" {
-		return path + ".exe"
-	}
-	return path
-}
 
 func init() {
 	if _, err := os.Stat(".env"); err == nil {
@@ -67,55 +52,92 @@ func main() {
 	if etl.Dump != "" && etl.WakaKey == "" {
 		sugar.Fatalw("Required environment variable WAKA_SECRET")
 	}
+	currentDate := dateFormat(etl.Date)
+	sugar.Infof("Query heartbeats '%s' from wakatime.com", currentDate)
+	wakaFile, err := wakaHeartbeats("", currentDate)
+	checkError(err)
+	defer os.Remove(wakaFile)
 
-	body, err := wakaHeartbeats()
-	if len(err) > 0 {
-		for _, e := range err {
-			sugar.Fatal(e)
-		}
-	}
-	sugar.Debugf("%s", body)
+	csvFile, err := writeFile("", []byte{})
+	checkError(err)
+	defer os.Remove(csvFile)
+
+	initFile, err := writeFile("", []byte(fmt.Sprintf(`
+		-- Import data
+		CREATE TABLE heartbeats AS SELECT UNNEST(data) as heartbeats FROM read_json_auto('%s', maximum_object_size=999999999);
+		-- Transfrom and export data
+		COPY (
+			SELECT * FROM (
+				SELECT
+					'%s' date,
+					heartbeats ->> 'id' as "id",
+					heartbeats ->> 'user_agent_id' as "user_agent_id",
+					heartbeats ->> 'branch' as "branch",
+					heartbeats ->> 'category' as "category",
+					heartbeats ->> 'type' as "type",
+					CAST(heartbeats ->> 'time' AS double) as 'time',
+					heartbeats ->> 'dependencies' as "dependencies",
+					heartbeats ->> 'entity' as "entity",
+					heartbeats ->> 'language' as "language",
+					heartbeats ->> 'lineno' as "lineno",
+					CAST(heartbeats ->> 'lines' AS integer) as "lines",
+					heartbeats ->> 'project' as "project",
+					heartbeats ->> 'project_root_count' as "project_root_count",
+					CAST(heartbeats ->> 'is_write' AS boolean) as "is_write",
+					CAST(heartbeats ->> 'created_at' AS timestamp) as "created_at",
+					CAST(heartbeats ->> 'cursorpos' AS integer) as "cursorpos"
+				FROM heartbeats
+			) WHERE "category" NOT IN('browsing', 'debugging', 'designing') AND "type" NOT IN('domain')
+		) TO '%s' (HEADER, DELIMITER ',', ENCODING UTF8);
+	`, wakaFile, currentDate, csvFile)))
+	checkError(err)
+	defer os.Remove(initFile)
+
+	sugar.Infoln("RUN:: duckdb (transfrom json to csv)")
+	err = cmd("duckdb", "-no-stdin", "-init", "./init")
+	checkError(err)
+
+	psqlFile, err := writeFile("", []byte(fmt.Sprintf(`
+		SET client_encoding TO 'UTF8';
+
+		CREATE TEMPORARY TABLE heartbeats (
+			"date" DATE NOT NULL,
+			"id" UUID NOT NULL,
+			"user_agent_id" UUID NULL,
+			"branch" VARCHAR NULL,
+			"category" VARCHAR NULL,
+			"type" VARCHAR NULL,
+			"time" DECIMAL NULL,
+			"dependencies" VARCHAR NULL,
+			"entity" VARCHAR NULL,
+			"language" VARCHAR NULL,
+			"lineno" BIGINT NULL,
+			"lines" BIGINT NULL,
+			"project" VARCHAR NULL,
+			"project_root_count" BIGINT NULL,
+			"is_write" BOOLEAN NULL,
+			"created_at" TIMESTAMP NULL,
+			"cursorpos" BIGINT NULL
+		);
+		
+		\COPY heartbeats FROM '%s' CSV HEADER;
+		
+		DELETE FROM stash.wakatime_heartbeats WHERE id IN (SELECT id FROM heartbeats);
+		INSERT INTO stash.wakatime_heartbeats SELECT * FROM heartbeats;
+		
+		-- INSERT INTO stash.wakatime_heartbeats
+		-- SELECT * FROM heartbeats
+		-- ON CONFLICT(id) DO NOTHING;
+	`, csvFile)))
+	checkError(err)
+	defer os.Remove(psqlFile)
+
 	if etl.Output == "postgres" {
-
+		sugar.Infoln("RUN:: psql (import to table)")
+		err = cmd("psql", "-Atx1", "-f", psqlFile)
+		checkError(err)
 	} else {
 		sugar.Fatalw("output not supported.")
 	}
-}
-
-func wakaHeartbeats() ([]byte, []error) {
-	wakaEndpoint := "https://wakatime.com/api/v1/users/current/heartbeats"
-	dateLayout := "2006-01-02"
-	now := time.Now().AddDate(0, 0, -1)
-	if etl.Date != "" {
-		etlDate, err := time.Parse(dateLayout, etl.Date)
-		if err != nil {
-			return nil, []error{err}
-		}
-		now = etlDate
-	}
-	agent := fiber.Get(fmt.Sprintf("%s?date=%s", wakaEndpoint, now.Format(dateLayout)))
-	agent.Add("Content-Type", "application/json").
-		Add("Authorization", fmt.Sprintf("Basic %s", b64.StdEncoding.EncodeToString([]byte(etl.WakaKey))))
-
-	statusCode, body, err := agent.Bytes()
-	if len(err) > 0 || statusCode > 200 {
-		return body, err
-	}
-
-	// pass status code and body received by the proxy
-	return body, []error{}
-}
-
-func cmd(name string, arg ...string) error {
-	var stdout bytes.Buffer
-	cmd := exec.Command(name, arg...)
-	// cmd.Stdin = strings.NewReader("and old falcon")
-
-	cmd.Stdout = &stdout
-	if err := cmd.Run(); err != nil {
-		sugar.Debugf("%q\n", stdout.String())
-		return err
-	}
-
-	return nil
+	sugar.Infoln("Complated export:", etl.Output)
 }
