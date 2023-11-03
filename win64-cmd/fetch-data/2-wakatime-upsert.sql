@@ -22,9 +22,9 @@ CREATE TEMPORARY TABLE heartbeats (
 
 \COPY heartbeats FROM 'wakatime-output.csv' CSV HEADER;
 
--- DELETE FROM stash.wakatime_heartbeats WHERE id IN (SELECT id FROM heartbeats);
--- INSERT INTO stash.wakatime_heartbeats SELECT * FROM heartbeats;
+DELETE FROM stash.wakatime_heartbeats WHERE id IN (SELECT id FROM heartbeats);
+INSERT INTO stash.wakatime_heartbeats SELECT * FROM heartbeats;
 
-INSERT INTO stash.wakatime_heartbeats
-SELECT * FROM heartbeats
-ON CONFLICT(id) DO NOTHING;
+-- INSERT INTO stash.wakatime_heartbeats
+-- SELECT * FROM heartbeats
+-- ON CONFLICT(id) DO NOTHING;

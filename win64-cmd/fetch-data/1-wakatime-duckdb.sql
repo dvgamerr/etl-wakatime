@@ -4,7 +4,7 @@ CREATE TABLE heartbeats AS SELECT UNNEST(data) as heartbeats FROM read_json_auto
 COPY (
   SELECT * FROM (
     SELECT
-      '2023-10-31' date,
+      '2023-11-02' date,
       heartbeats ->> 'id' as "id",
       heartbeats ->> 'user_agent_id' as "user_agent_id",
       heartbeats ->> 'branch' as "branch",
