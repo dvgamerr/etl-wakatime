@@ -33,8 +33,11 @@ func wakaHeartbeats(name string, date string) (string, error) {
 		Add("Authorization", fmt.Sprintf("Basic %s", b64.StdEncoding.EncodeToString([]byte(etl.WakaKey))))
 
 	statusCode, body, errs := agent.Bytes()
-	if len(errs) > 0 || statusCode > 200 {
+	if len(errs) > 0 {
 		return "", errs[0]
+	}
+	if statusCode > 200 {
+		return "", fmt.Errorf("heartbeats is status %d, %s", statusCode, body)
 	}
 	return writeFile(name, body)
 }
@@ -48,6 +51,9 @@ func win64Goos(path string) string {
 
 func writeFile(name string, body []byte) (string, error) {
 	fp, err := os.CreateTemp("", name)
+	if name != "" {
+		fp, err = os.Create(name)
+	}
 	if err != nil {
 		return "", err
 	}

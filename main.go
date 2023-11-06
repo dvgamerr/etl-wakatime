@@ -94,7 +94,7 @@ func main() {
 	defer os.Remove(initFile)
 
 	sugar.Infoln("RUN:: duckdb (transfrom json to csv)")
-	err = cmd("duckdb", "-no-stdin", "-init", "./init")
+	err = cmd("duckdb", "-no-stdin", "-init", initFile)
 	checkError(err)
 
 	psqlFile, err := writeFile("", []byte(fmt.Sprintf(`
