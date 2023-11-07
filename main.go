@@ -116,7 +116,7 @@ func main() {
 			"project" VARCHAR NULL,
 			"project_root_count" BIGINT NULL,
 			"is_write" BOOLEAN NULL,
-			"created_at" TIMESTAMP NULL,
+			"created_at" TIMESTAMP WITH TIME ZONE NULL,
 			"cursorpos" BIGINT NULL
 		);
 		
