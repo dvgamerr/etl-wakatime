@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -68,7 +69,9 @@ func writeFile(name string, body []byte) (string, error) {
 func cmd(name string, arg ...string) error {
 	app := which.Which(win64Goos(name))
 	cmd := exec.CommandContext(context.Background(), app, arg...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
+	cmd.Wait()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s %s\n%s\n%s", app, arg, err.Error(), output)
 	}
